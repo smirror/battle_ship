@@ -1,6 +1,7 @@
 from collections import deque
 import numpy as np
 import sys
+from pprint import *
 
 
 class battle_ship:
@@ -22,7 +23,6 @@ class battle_ship:
         score[11, :] = 0
         self.score = score
 
-        self.downs_count = 0
         self.hits_count = 0
         self.shots_count = 0
 
@@ -67,21 +67,17 @@ class battle_ship:
                 if self.map[nx][ny] != ".":
                     continue
                 result = self.check(nx, ny)
-                if self.hit(self, result):
+                if self.hit(result):
                     que.append((nx, ny))
 
     def hit(self, result):
         # hitしているかの判定
-        # TODO: 勝利宣言のメッセージの条件分岐を変える(この場合ではhitが最終状態にはならない)
-        # しかし、そもそもDown情報が意味があるかと言われると。。。
         if result == "hit":
             self.hits_count += 1
             if self.hits_count == 17:
-                self.write("Conglaturations on Your Win!!")
-        elif result == "down":
-            self.downs_count += 1
-            if self.downs_count == 5:
-                self.write("Conglaturations on Your Win!!")
+                self.write("Conglaturations on Your Win!!\n")
+                pprint(self.map)
+                exit(0)
 
         return result == "hit"
 
@@ -90,7 +86,7 @@ class battle_ship:
         判定から位置を推測
         hitの場合、dfsに切り替え
         """
-        if self.hit(self, result):
+        if self.hit(result):
             self.bfs(x, y)
         return
 
@@ -104,16 +100,16 @@ class battle_ship:
         exit(0)
 
     def main(self):
-        while True:
-            if self.shots_count == 100:
-                self.write("Input's map is Wrong")
-            x, y = self.candidate()
-            if self.map[x][y] != ".":
-                continue
-            result = self.check(x, y)
-            self.sonner(x, y, result)
+        if self.shots_count == 100:
+            self.write("Input's map is Wrong")
+        x, y = self.candidate()
+        if self.map[x][y] != ".":
+            return
+        result = self.check(x, y)
+        self.sonner(x, y, result)
 
 
 if __name__ == "__main__":
     bs = battle_ship()
-    bs.main()
+    while True:
+        bs.main()
