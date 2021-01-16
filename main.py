@@ -33,7 +33,11 @@ class battle_ship:
 
     def query(self, x: int, y: int):
         # クエリ: "shot x1 x2" を出力
+        pprint(self.map)
+        pprint(self.score)
         self.write("shot %d %d\n" % (x, y))
+        self.write(
+            "send me result if :/hit -> 'h'/down -> 'h' / miss -> 'm': ")
         self.flush()
         # ジャッジから返される値を取得
         return self.readline().strip()
@@ -43,9 +47,9 @@ class battle_ship:
 
         self.shots_count += 1
         result = self.query(x, y)
-        self.command.append((x, y))
         if result == "back":
             self.debug_mode(result)
+        self.command.append((x, y))
 
         self.write("Counts: %d\n" % self.shots_count)
         self.flush()
@@ -55,7 +59,22 @@ class battle_ship:
 
         return result
 
+    """
+    def dfs(self, sx: int, sy: int, result: str):
+        for dx, dy in [(1, 0), (0, 1), (-1, 0), (0, -1)]:
+            nx, ny = sx+dx, sy+dy
+            result = self.check(nx, ny)
+            if self.hit(result):
+                # do something
+                return
+
+            A.append(v)
+            self.dfs(A)
+            A.pop()
+    """
+
     def bfs(self, sx: int, sy: int):
+        # TODO: bfsではなくdfsの方が作りやすく、性能も良いのでは?
         que = deque([(sx, sy)])
         while que:
             x, y = que.popleft()
@@ -72,14 +91,14 @@ class battle_ship:
 
     def hit(self, result):
         # hitしているかの判定
-        if result == "hit":
+        if result == "h":
             self.hits_count += 1
             if self.hits_count == 17:
                 self.write("Conglaturations on Your Win!!\n")
                 pprint(self.map)
                 exit(0)
 
-        return result == "hit"
+        return result == "h"
 
     def sonner(self, x: int, y: int, result: str):
         """
