@@ -1,8 +1,12 @@
-from itertools import product
 from collections import deque
 import numpy as np
 import sys
 from pprint import *
+import resource
+import random
+
+sys.setrecursionlimit(10**9)
+resource.setrlimit(resource.RLIMIT_STACK, (-1, -1))
 
 
 class battle_ship:
@@ -10,37 +14,32 @@ class battle_ship:
     write = sys.stdout.write
     flush = sys.stdout.flush
 
-    def __init__(self):
+    def __init__(self, command_map):
+        self.command_map = command_map
         self.command = deque([])
         map = [list("#"*(12))]
         map += [list("#" + "."*(10) + "#") for _ in range(10)]
         map += [list("#"*(12))]
         self.map = map
 
-        score = np.full((12, 12), 1 << 5)
-        score[0, :] = 0
-        score[:, 0] = 0
-        score[:, 11] = 0
-        score[11, :] = 0
+        score = np.zeros((12, 12), dtype=np.int32)
+        candidate = []
+        prob = 1 << 6
         for i in range(1, 11):
             for j in range(1, 11, 2):
                 if i % 2:
-                    score[i, j] = 0
+                    score[i, j] = prob
+                    candidate.append(12*i + j)
                 else:
-                    score[i, j+1] = 0
-
+                    score[i, j+1] = prob
+                    candidate.append(12*i + (j+1))
         self.score = score
-
+        self.random = deque(random.sample(candidate, k=50))
         self.state = "Random"
 
         self.downs_count = 0
         self.hits_count = 0
         self.shots_count = 0
-
-    def random_choice(self):
-        check = self.score*np.random.rand(12, 12)
-        xy = np.argmax(check)  # 1次元配列に直される。
-        return xy % 12, xy // 12
 
     def query(self, x: int, y: int):
         # ユーザーが現在の状態を把握するために、クラス内の重要な変数を出力
@@ -49,15 +48,17 @@ class battle_ship:
         self.map[x][y] = "@"
         pprint(self.map)
         self.map[x][y] = '.'
+        self.flush()
         # pprint(self.score)
         self.write("State: %s\n" % self.state)
         # クエリ: "shot x1 x2" を出力
         self.write("shot %d %d\n" % (x, y))
         self.write(
-            "send me result if :/hit -> 'h' / down -> 'd' / miss -> 'm': ")
+            "send me result if :/hit -> 'h' / down -> 'd' / miss -> 'm': %s\n" % self.command_map[x-1][y-1])
         self.flush()
         # ジャッジから返される値を取得
-        return self.readline().strip()
+        # return self.readline().strip()
+        return self.command_map[x-1][y-1]
 
     def dfs(self, sx: int, sy: int):
         self.state = "DFS"
@@ -67,7 +68,15 @@ class battle_ship:
             while self.hit(result):
                 nx, ny = nx+dx, ny+dy
                 result = self.check(nx, ny)
-            if result == "d":
+
+            if result == "h" or result == "d":
+                if result == "d":
+                    return
+                nx, ny = sx-dx, sy-dy
+                result = self.check(nx, ny)
+                while self.hit(result):
+                    nx, ny = nx-dx, ny-dy
+                    result = self.check(nx, ny)
                 return
 
     def bfs(self, sx: int, sy: int):
@@ -112,7 +121,8 @@ class battle_ship:
             if result == "d":
                 self.downs_count += 1
             self.hits_count += 1
-            if self.hits_count == 17 and self.downs_count == 5:
+            if self.hits_count == 17:
+                # if self.hits_count == 17 and self.downs_count == 5:
                 self.write("Conglaturations on Your Win!!\n")
                 pprint(self.map)
                 exit(0)
@@ -125,7 +135,7 @@ class battle_ship:
         hitの場合、dfsに切り替え
         """
         if self.hit(result):
-            if(self.hits_count < 14 or self.downs_count <= 3):
+            if(self.hits_count <= 14 or self.downs_count <= 3):
                 self.dfs(x, y)
             else:
                 candidate = self.bfs(x, y)
@@ -153,7 +163,8 @@ class battle_ship:
     def main(self):
         if self.shots_count == 100:
             self.write("Input's map is Wrong")
-        x, y = self.random_choice()
+        xy = self.random.popleft()
+        x, y = xy // 12, xy % 12
         if self.map[x][y] != ".":
             return
         result = self.check(x, y)
@@ -161,7 +172,8 @@ class battle_ship:
 
 
 if __name__ == "__main__":
-    bs = battle_ship()
-    print(bs.score)
+    command_map = [list("mmmmmmmmmm"), list("hhmmmmmmmh"), list("mmhmmmmmmh"), list("mmhmmmmmmh"), list("mmhmmmmmmh"),
+                   list("mmhmmmmmmm"), list("hmmmmmmmmm"), list("hmmmmmmmmm"), list("hmmmmmmmmm"), list("hmmmmmhhhh")]
+    bs = battle_ship(command_map)
     while True:
         bs.main()
