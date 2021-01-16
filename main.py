@@ -1,3 +1,4 @@
+from itertools import product
 from collections import deque
 import numpy as np
 import sys
@@ -21,29 +22,75 @@ class battle_ship:
         score[:, 0] = 0
         score[:, 11] = 0
         score[11, :] = 0
+        for i in range(1, 11):
+            for j in range(1, 11, 2):
+                if i % 2:
+                    score[i, j] = 0
+                else:
+                    score[i, j+1] = 0
+
         self.score = score
 
+        self.state = "Random"
+
+        self.downs_count = 0
         self.hits_count = 0
         self.shots_count = 0
 
-    def candidate(self):
+    def random_choice(self):
         check = self.score*np.random.rand(12, 12)
         xy = np.argmax(check)  # 1次元配列に直される。
         return xy % 12, xy // 12
 
     def query(self, x: int, y: int):
-        # クエリ: "shot x1 x2" を出力
+        # ユーザーが現在の状態を把握するために、クラス内の重要な変数を出力
+        self.write("downs count: %d\n" % self.downs_count)
+        self.write("hits count:%d\n" % self.hits_count)
+        self.map[x][y] = "@"
         pprint(self.map)
-        pprint(self.score)
+        self.map[x][y] = '.'
+        # pprint(self.score)
+        self.write("State: %s\n" % self.state)
+        # クエリ: "shot x1 x2" を出力
         self.write("shot %d %d\n" % (x, y))
         self.write(
-            "send me result if :/hit -> 'h'/down -> 'h' / miss -> 'm': ")
+            "send me result if :/hit -> 'h' / down -> 'd' / miss -> 'm': ")
         self.flush()
         # ジャッジから返される値を取得
         return self.readline().strip()
 
+    def dfs(self, sx: int, sy: int):
+        self.state = "DFS"
+        for dx, dy in [(1, 0), (0, 1), (-1, 0), (0, -1)]:
+            nx, ny = sx+dx, sy+dy
+            result = self.check(nx, ny)
+            while self.hit(result):
+                nx, ny = nx+dx, ny+dy
+                result = self.check(nx, ny)
+            if result == "d":
+                return
+
+    def bfs(self, sx: int, sy: int):
+        self.state = "BFS"
+        que = deque([(sx, sy)])
+        candidate = []
+        while que:
+            x, y = que.popleft()
+            # 停止条件
+            if self.hits_count == 17:
+                return
+            for dx, dy in [(1, 0), (0, 1), (-1, 0), (0, -1)]:
+                nx, ny = x+dx, y+dy
+                if self.map[nx][ny] == ".":
+                    candidate.append((nx, ny))
+                elif self.map[nx][ny] == "h":
+                    que.append((nx, ny))
+        return candidate
+
     def check(self, x: int, y: int):
         # 判定結果からscoreを更新
+        if self.map[x][y] != ".":
+            return 'c'  # shotしては行けない場所を指し示しているため、位置を変更
 
         self.shots_count += 1
         result = self.query(x, y)
@@ -59,41 +106,13 @@ class battle_ship:
 
         return result
 
-    """
-    def dfs(self, sx: int, sy: int, result: str):
-        for dx, dy in [(1, 0), (0, 1), (-1, 0), (0, -1)]:
-            nx, ny = sx+dx, sy+dy
-            result = self.check(nx, ny)
-            if self.hit(result):
-                # do something
-                return
-
-            A.append(v)
-            self.dfs(A)
-            A.pop()
-    """
-
-    def bfs(self, sx: int, sy: int):
-        # TODO: bfsではなくdfsの方が作りやすく、性能も良いのでは?
-        que = deque([(sx, sy)])
-        while que:
-            x, y = que.popleft()
-            # 停止条件
-            if self.hits_count == 17:
-                return
-            for dx, dy in [(1, 0), (0, 1), (-1, 0), (0, -1)]:
-                nx, ny = x+dx, y+dy
-                if self.map[nx][ny] != ".":
-                    continue
-                result = self.check(nx, ny)
-                if self.hit(result):
-                    que.append((nx, ny))
-
     def hit(self, result):
         # hitしているかの判定
-        if result == "h":
+        if result == "h" or result == "d":
+            if result == "d":
+                self.downs_count += 1
             self.hits_count += 1
-            if self.hits_count == 17:
+            if self.hits_count == 17 and self.downs_count == 5:
                 self.write("Conglaturations on Your Win!!\n")
                 pprint(self.map)
                 exit(0)
@@ -106,12 +125,25 @@ class battle_ship:
         hitの場合、dfsに切り替え
         """
         if self.hit(result):
-            self.bfs(x, y)
+            if(self.hits_count < 14 or self.downs_count <= 3):
+                self.dfs(x, y)
+            else:
+                candidate = self.bfs(x, y)
+                for nx, ny in candidate:
+                    count = 0
+                    for dx, dy in [(1, 0), (0, 1), (-1, 0), (0, -1)]:
+                        if self.map[nx+dx][ny+dy] == "h":
+                            count += 1
+                    if count >= 2:
+                        result = self.check(nx, ny)
+                        self.hit(result)
+        self.state = "Random"
         return
 
     def debug_mode(self, x):
         """
-        判定から位置を推測し、scoreを更新
+        コマンドの巻き戻しやselfの変数を確認するモード
+        現在は終了コマンド
         """
         self.write("! %s\n" % x)
         self.flush()
@@ -121,7 +153,7 @@ class battle_ship:
     def main(self):
         if self.shots_count == 100:
             self.write("Input's map is Wrong")
-        x, y = self.candidate()
+        x, y = self.random_choice()
         if self.map[x][y] != ".":
             return
         result = self.check(x, y)
@@ -130,5 +162,6 @@ class battle_ship:
 
 if __name__ == "__main__":
     bs = battle_ship()
+    print(bs.score)
     while True:
         bs.main()
